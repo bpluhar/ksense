@@ -21,17 +21,23 @@ let metadata: Metadata = {
 async function fetchPatientData(): Promise<void> {
   const limit = pagination.limit;
 
-  const firstRes = await fetch(`${BASE_URL}/patients?page=1&limit=${limit}`, {
-    method: 'GET',
-    headers: {
-      'x-api-key': API_KEY
-    }
-  });
-  const firstJson = await firstRes.json();
+  try {
+    const firstRes = await fetch(`${BASE_URL}/patients?page=1&limit=${limit}`, {
+      method: 'GET',
+      headers: {
+        'x-api-key': API_KEY
+      }
+    });
+    if (!firstRes.ok) throw new Error(`HTTP ${firstRes.status}`);
+    const firstJson = await firstRes.json();
 
-  patients = firstJson.data;
-  pagination = firstJson.pagination;
-  metadata = firstJson.metadata;
+    patients = firstJson.data;
+    pagination = firstJson.pagination;
+    metadata = firstJson.metadata;
+  } catch (err) {
+    console.error('Failed first patients fetch:', err);
+    return;
+  }
 
   const totalPages = pagination.totalPages;
 
@@ -48,10 +54,6 @@ async function fetchPatientData(): Promise<void> {
   }
 }
 
-fetchPatientData().then(() => {
-  if (patients.length === pagination.total) {
-    console.log("so far so good");
-  } else {
-    console.log("something is wrong");
-  }
-});
+
+
+fetchPatientData();
