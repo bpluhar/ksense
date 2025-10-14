@@ -19,7 +19,7 @@ let metadata: Metadata = {
 };
 
 async function fetchPatientData(): Promise<void> {
-  const response = await fetch(`${BASE_URL}/patients`, {
+  const response = await fetch(`${BASE_URL}/patients?page=1&limit=10`, {
     method: 'GET',
     headers: {
       'x-api-key': API_KEY
@@ -30,8 +30,6 @@ async function fetchPatientData(): Promise<void> {
   pagination = data.pagination;
   metadata = data.metadata;
 }
-
-
 
 fetchPatientData().then(() => {
   console.log(patients, pagination, metadata);
