@@ -35,25 +35,47 @@ async function fetchPatientData(): Promise<void> {
     pagination = firstJson.pagination;
     metadata = firstJson.metadata;
   } catch (err) {
-    console.error('Failed first patients fetch:', err);
-    return;
+    if (err == "Error: HTTP 429") {
+      console.log("Rate limit exceeded, retrying in 1 second");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await fetchPatientData();
+      return;
+    } else {
+      console.error('Failed first patients fetch:', err);
+      return;
+    }
   }
 
   const totalPages = pagination.totalPages;
 
-  for (let page = 2; page <= totalPages; page++) {
-    const res = await fetch(`${BASE_URL}/patients?page=${page}&limit=${limit}`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': API_KEY
-      }
-    });
-    const json = await res.json();
-    const newPatients: Patient[] = json.data;
-    patients = patients.concat(newPatients);
+  try {
+    for (let page = 2; page <= totalPages; page++) {
+      const res = await fetch(`${BASE_URL}/patients?page=${page}&limit=${limit}`, {
+        method: 'GET',
+        headers: {
+          'x-api-key': API_KEY
+        }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const newPatients: Patient[] = json.data;
+      patients = patients.concat(newPatients);
+    }
+  } catch (err) {
+    if (err == "Error: HTTP 429") {
+      console.log("Rate limit exceeded, retrying in 1 second");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await fetchPatientData();
+      return;
+    } else {
+      console.error('Failed remaining patients fetch:', err);
+      return;
+    }
   }
 }
 
 
 
-fetchPatientData();
+fetchPatientData().then(() => {
+  console.log(`Received Patients: ${patients.length} of ${pagination.total}`);
+});
