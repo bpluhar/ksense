@@ -1,7 +1,13 @@
 import { Patient, Pagination, Metadata } from './types';
+import 'dotenv/config';
 
-const API_KEY = 'ak_322e3646b8b8083e7cbd7890a9ca2fc73b08552d5093de17';
 const BASE_URL = 'https://assessment.ksensetech.com/api';
+
+const API_KEY = process.env.API_KEY || '';
+
+if (!API_KEY) {
+  console.warn('API_KEY is not set. Provide it via env (API_KEY=...) or dotenv.');
+}
 
 let patients: Patient[] = [];
 let pagination: Pagination = {
@@ -99,6 +105,42 @@ async function fetchRemainingPages(limit: number): Promise<void> {
   retryCount = 0;
 }
 
+
+function scoreBloodPressure(bp: string | null | undefined): { score: number; valid: boolean } {
+  const { systolic, diastolic } = parseBloodPressure(bp);
+  if (systolic == null || diastolic == null) return { score: 0, valid: false };
+  if (systolic >= 140 || diastolic >= 90) return { score: 4, valid: true };
+  if ((systolic >= 130 && systolic <= 139) || (diastolic >= 80 && diastolic <= 89)) return { score: 3, valid: true };
+  if (systolic >= 120 && systolic <= 129 && diastolic < 80) return { score: 2, valid: true };
+  if (systolic < 120 && diastolic < 80) return { score: 1, valid: true };
+  return { score: 0, valid: false };
+}
+
+function parseBloodPressure(bp: string | null | undefined): { systolic: number | null; diastolic: number | null } {
+  if (!bp || typeof bp !== 'string') return { systolic: null, diastolic: null };
+  const parts = bp.split('/').map(s => s.trim());
+  if (parts.length !== 2) return { systolic: null, diastolic: null };
+  const sys = Number(parts[0]);
+  const dia = Number(parts[1]);
+  return { systolic: sys, diastolic: dia };
+}
+
+function sortData(patients: Patient[]): { high_risk_patients: string[]; } {
+  const highRisk: string[] = [];
+
+  for (const patient of patients) {
+    const bp = scoreBloodPressure(patient.blood_pressure);
+
+    const totalScore = bp.score;
+
+    if (totalScore >= 4) highRisk.push(patient.patient_id);
+  }
+
+  return {
+    high_risk_patients: highRisk
+  };
+}
+
 async function fetchPatientData(): Promise<void> {
   const limit = pagination.limit;
   await fetchFirstPage(limit);
@@ -109,6 +151,9 @@ async function fetchPatientData(): Promise<void> {
   } else {
     console.log(`Success: fetched all ${patients.length} patients`);
   }
+
+  const alerts = sortData(patients);
+  console.log(alerts);
 }
 
 fetchPatientData().then(() => {
