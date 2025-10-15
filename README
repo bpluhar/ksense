@@ -1,0 +1,1 @@
+Create a env.ts file in root add `export const API_KEY = ""` for testing.
