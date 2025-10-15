@@ -176,7 +176,7 @@ async function fetchPatientData(): Promise<void> {
   await fetchRemainingPages(limit);
   if (patients.length !== pagination.total) {
     console.warn(`Warning: fetched ${patients.length} patients, expected ${pagination.total}`);
-  } else {
+  } else if (patients.length == pagination.total) {
     console.log(`Success: fetched all ${patients.length} patients`);
 
     const alerts = sortData(patients);
@@ -197,6 +197,8 @@ async function fetchPatientData(): Promise<void> {
     } catch (err) {
       console.error('Failed to submit assessment:', err);
     }
+  } else {
+    console.warn(`Warning: fetched ${patients.length} patients, expected ${pagination.total}`);
   }
   
 
