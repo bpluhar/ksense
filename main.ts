@@ -175,7 +175,23 @@ async function fetchPatientData(): Promise<void> {
   }
 
   const alerts = sortData(patients);
-  console.log(alerts);
+
+  try {
+    const res = await fetch(`${BASE_URL}/submit-assessment}`, {
+      method: 'POST',
+      headers: {  
+        'x-api-key': API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(alerts)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    console.log(json);
+  } catch (err) {
+    console.error('Failed to submit assessment:', err);
+  }
+
 }
 
 fetchPatientData().then(() => {
