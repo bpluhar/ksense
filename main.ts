@@ -1,9 +1,7 @@
 import { Patient, Pagination, Metadata } from './types';
-import dotenv from 'dotenv';
-dotenv.config();
+import 'dotenv/config';
 
 const BASE_URL = 'https://assessment.ksensetech.com/api';
-
 const API_KEY = process.env.API_KEY || '';
 
 if (!API_KEY) {
@@ -106,7 +104,6 @@ async function fetchRemainingPages(limit: number): Promise<void> {
   retryCount = 0;
 }
 
-
 function scoreBloodPressure(bp: string | null | undefined): { score: number; valid: boolean } {
   const { systolic, diastolic } = parseBloodPressure(bp);
   if (systolic == null || diastolic == null) return { score: 0, valid: false };
@@ -134,19 +131,23 @@ function scoreTemperature(temp: number | null | undefined): { score: number; val
   return { score: 0, valid: false, isFever: false };
 }
 
-function sortData(patients: Patient[]): { high_risk_patients: string[]; } {
+function sortData(patients: Patient[]): { high_risk_patients: string[]; fever_patients: string[]; } {
   const highRisk: string[] = [];
+  const fever: string[] = [];
 
   for (const patient of patients) {
     const bp = scoreBloodPressure(patient.blood_pressure);
+    const t = scoreTemperature(patient.temperature);
 
     const totalScore = bp.score;
 
     if (totalScore >= 4) highRisk.push(patient.patient_id);
+    if (t.valid && t.isFever) fever.push(patient.patient_id);
   }
 
   return {
-    high_risk_patients: highRisk
+    high_risk_patients: highRisk,
+    fever_patients: fever
   };
 }
 
