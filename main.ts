@@ -126,6 +126,14 @@ function parseBloodPressure(bp: string | null | undefined): { systolic: number |
   return { systolic: sys, diastolic: dia };
 }
 
+function scoreTemperature(temp: number | null | undefined): { score: number; valid: boolean; isFever: boolean } {
+  if (typeof temp !== 'number' || !Number.isFinite(temp)) return { score: 0, valid: false, isFever: false };
+  if (temp >= 101.0) return { score: 2, valid: true, isFever: true };
+  if (temp >= 99.6 && temp <= 100.9) return { score: 1, valid: true, isFever: true };
+  if (temp <= 99.5) return { score: 0, valid: true, isFever: false };
+  return { score: 0, valid: false, isFever: false };
+}
+
 function sortData(patients: Patient[]): { high_risk_patients: string[]; } {
   const highRisk: string[] = [];
 
