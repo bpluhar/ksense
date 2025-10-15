@@ -21,51 +21,47 @@ let metadata: Metadata = {
 let retryCount = 0;
 let firstFetch = false;
 
-async function fetchPatientData(): Promise<void> {
-  const limit = pagination.limit;
-
-  if (!firstFetch) {
-    try {
-      console.log("Fetching first page");
-      const firstRes = await fetch(`${BASE_URL}/patients?page=1&limit=${limit}`, {
-        method: 'GET',
-        headers: {
-          'x-api-key': API_KEY
-        }
-      });
-      if (!firstRes.ok) throw new Error(`HTTP ${firstRes.status}`);
-
-      const firstJson = await firstRes.json();
-      firstFetch = true;
-      patients = firstJson.data;
-      pagination = firstJson.pagination;
-      metadata = firstJson.metadata;
-    } catch (err) {
-      if (err == "Error: HTTP 429") {
-        retryCount++;
-        console.log(`Rate limit exceeded, retrying in ${retryCount} seconds`);
-        await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
-        await fetchPatientData();
-        return;
-      } else if (err == "Error: HTTP 500" || err == "Error: HTTP 503" || err == "Error: HTTP 502") {
-        retryCount++;
-        console.log(`Server error, retrying in ${retryCount} seconds`);
-        await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
-        await fetchPatientData();
-        return;
-      } else {
-        console.error('Failed first patients fetch:', err);
-        return;
-      }
-    }
-    retryCount = 0;
-  }
-
-  console.log(retryCount);
-  const totalPages = pagination.totalPages;
-
+async function fetchFirstPage(limit: number): Promise<void> {
+  if (firstFetch) return;
   try {
-    // console.log(retryCount);
+    console.log("Fetching first page");
+    const firstRes = await fetch(`${BASE_URL}/patients?page=1&limit=${limit}`, {
+      method: 'GET',
+      headers: {
+        'x-api-key': API_KEY
+      }
+    });
+    if (!firstRes.ok) throw new Error(`HTTP ${firstRes.status}`);
+
+    const firstJson = await firstRes.json();
+    firstFetch = true;
+    patients = firstJson.data;
+    pagination = firstJson.pagination;
+    metadata = firstJson.metadata;
+    retryCount = 0;
+  } catch (err) {
+    if (err == "Error: HTTP 429") {
+      retryCount++;
+      console.log(`Rate limit exceeded, retrying in ${retryCount} seconds`);
+      await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+      await fetchFirstPage(limit);
+      return;
+    } else if (err == "Error: HTTP 500" || err == "Error: HTTP 503" || err == "Error: HTTP 502") {
+      retryCount++;
+      console.log(`Server error, retrying in ${retryCount} seconds`);
+      await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+      await fetchFirstPage(limit);
+      return;
+    } else {
+      console.error('Failed first patients fetch:', err);
+      return;
+    }
+  }
+}
+
+async function fetchRemainingPages(limit: number): Promise<void> {
+  const totalPages = pagination.totalPages;
+  try {
     for (let page = 2; page <= totalPages; page++) {
       console.log(`Fetching page ${page} of ${totalPages}`);
       const res = await fetch(`${BASE_URL}/patients?page=${page}&limit=${limit}`, {
@@ -79,28 +75,33 @@ async function fetchPatientData(): Promise<void> {
       const newPatients: Patient[] = json.data;
       patients = patients.concat(newPatients);
     }
+    retryCount = 0;
   } catch (err) {
     if (err == "Error: HTTP 429") {
       retryCount++;
       console.log(`Rate limit exceeded, retrying in ${retryCount} seconds`);
       await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
-      await fetchPatientData();
+      await fetchRemainingPages(limit);
       return;
     } else if (err == "Error: HTTP 500" || err == "Error: HTTP 503" || err == "Error: HTTP 502") {
       retryCount++;
       console.log(`Server error, retrying in ${retryCount} seconds`);
       await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
-      await fetchPatientData();
+      await fetchRemainingPages(limit);
       return;
     } else {
       console.error('Failed remaining patients fetch:', err);
       return;
     }
-    retryCount = 0;
   }
 }
 
-
+async function fetchPatientData(): Promise<void> {
+  const limit = pagination.limit;
+  await fetchFirstPage(limit);
+  if (!firstFetch) return;
+  await fetchRemainingPages(limit);
+}
 
 fetchPatientData().then(() => {
   console.log(`Received Patients: ${patients.length} of ${pagination.total}`);
