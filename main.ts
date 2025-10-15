@@ -1,8 +1,9 @@
 import { Patient, Pagination, Metadata } from './types';
-import 'dotenv/config';
+import { API_KEY } from './env.ts';
 
 const BASE_URL = 'https://assessment.ksensetech.com/api';
-const API_KEY = process.env.API_KEY || '';
+
+const KEY = API_KEY;
 
 if (!API_KEY) {
   console.warn('API_KEY is not set. Provide it via env (API_KEY=...) or dotenv.');
@@ -103,6 +104,7 @@ async function fetchRemainingPages(limit: number): Promise<void> {
   }
   retryCount = 0;
 }
+
 
 function scoreBloodPressure(bp: string | null | undefined): { score: number; valid: boolean } {
   const { systolic, diastolic } = parseBloodPressure(bp);
