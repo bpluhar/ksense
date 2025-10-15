@@ -105,14 +105,13 @@ async function fetchRemainingPages(limit: number): Promise<void> {
   retryCount = 0;
 }
 
-
 function scoreBloodPressure(bp: string | null | undefined): { score: number; valid: boolean } {
   const { systolic, diastolic } = parseBloodPressure(bp);
   if (systolic == null || diastolic == null) return { score: 0, valid: false };
-  if (systolic >= 140 || diastolic >= 90) return { score: 4, valid: true };
-  if ((systolic >= 130 && systolic <= 139) || (diastolic >= 80 && diastolic <= 89)) return { score: 3, valid: true };
-  if (systolic >= 120 && systolic <= 129 && diastolic < 80) return { score: 2, valid: true };
-  if (systolic < 120 && diastolic < 80) return { score: 1, valid: true };
+  if (systolic >= 140 || diastolic >= 90) return { score: 3, valid: true };
+  if ((systolic >= 130 && systolic <= 139) || (diastolic >= 80 && diastolic <= 89)) return { score: 2, valid: true };
+  if (systolic >= 120 && systolic <= 129 && diastolic < 80) return { score: 1, valid: true };
+  if (systolic < 120 && diastolic < 80) return { score: 0, valid: true };
   return { score: 0, valid: false };
 }
 
@@ -120,8 +119,13 @@ function parseBloodPressure(bp: string | null | undefined): { systolic: number |
   if (!bp || typeof bp !== 'string') return { systolic: null, diastolic: null };
   const parts = bp.split('/').map(s => s.trim());
   if (parts.length !== 2) return { systolic: null, diastolic: null };
-  const sys = Number(parts[0]);
-  const dia = Number(parts[1]);
+  const [sysStr, diaStr] = parts;
+  // Require both parts to be non-empty and numeric digits
+  const isDigits = (s: string) => /^[0-9]+$/.test(s);
+  if (!isDigits(sysStr) || !isDigits(diaStr)) return { systolic: null, diastolic: null };
+  const sys = Number(sysStr);
+  const dia = Number(diaStr);
+  if (!Number.isFinite(sys) || !Number.isFinite(dia)) return { systolic: null, diastolic: null };
   return { systolic: sys, diastolic: dia };
 }
 
@@ -136,7 +140,9 @@ function scoreTemperature(temp: number | null | undefined): { score: number; val
 function scoreAge(age: number | null | undefined): { score: number; valid: boolean } {
   if (typeof age !== 'number' || !Number.isFinite(age)) return { score: 0, valid: false };
   if (age > 65) return { score: 2, valid: true };
-  return { score: 1, valid: true };
+  if (age <= 65 && age >= 40) return { score: 1, valid: true };
+  if (age < 40) return { score: 0, valid: true };
+  return { score: 0, valid: false };
 }
 
 function sortData(patients: Patient[]): { high_risk_patients: string[]; fever_patients: string[]; data_quality_issues: string[]; } {
@@ -175,23 +181,23 @@ async function fetchPatientData(): Promise<void> {
   }
 
   const alerts = sortData(patients);
-
-  try {
-    fetch('https://assessment.ksensetech.com/api/submit-assessment', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': API_KEY
-      },
-      body: JSON.stringify(alerts)
-    })
-    .then(response => response.json())
-    .then(data => {
-      console.log('Assessment Results:', JSON.stringify(data, null, 2));
-    });
-  } catch (err) {
-    console.error('Failed to submit assessment:', err);
-  }
+  console.log(JSON.stringify(alerts, null, 2));
+  // try {
+  //   fetch('https://assessment.ksensetech.com/api/submit-assessment', {
+  //     method: 'POST',
+  //     headers: {
+  //       'Content-Type': 'application/json',
+  //       'x-api-key': API_KEY
+  //     },
+  //     body: JSON.stringify(alerts)
+  //   })
+  //   .then(response => response.json())
+  //   .then(data => {
+  //     console.log('Assessment Results:', JSON.stringify(data, null, 2));
+  //   });
+  // } catch (err) {
+  //   console.error('Failed to submit assessment:', err);
+  // }
 
 }
 
