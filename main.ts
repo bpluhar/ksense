@@ -23,6 +23,10 @@ let firstFetch = false;
 
 let maxRetries = 5;
 
+function isRetriableError(err: unknown): boolean {
+  return err instanceof Error && /HTTP\s(429|500|503|502)/.test(err.message);
+}
+
 function wait(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -40,12 +44,10 @@ async function fetchPage(page: number, limit: number): Promise<{ data: Patient[]
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       const data: Patient[] = json.data;
-      console.log(`Page ${page}: status ${res.status}, received ${data.length} patients`);
       return { data, pagination: json?.pagination, metadata: json?.metadata };
     } catch (err) {
-      if (err instanceof Error && /HTTP\s(429|500|503|502)/.test(err.message) && attempt < maxRetries) {
+      if (isRetriableError(err) && attempt < maxRetries) {
         const waitMs = attempt * 1000;
-        console.log(`Page ${page} attempt ${attempt} failed (${(err as Error).message}). Retrying in ${waitMs}ms`);
         await wait(waitMs);
         continue;
       }
@@ -59,18 +61,15 @@ async function fetchPage(page: number, limit: number): Promise<{ data: Patient[]
 async function fetchFirstPage(limit: number): Promise<void> {
   if (firstFetch) return;
   try {
-    console.log("Fetching first page");
     const { data, pagination: pg, metadata: md } = await fetchPage(1, limit);
     firstFetch = true;
     patients = data;
     if (pg) pagination = pg;
     if (md) metadata = md;
     retryCount = 0;
-    console.log(`After page 1: patients=${patients.length}, total=${pagination.total}, totalPages=${pagination.totalPages}`);
   } catch (err) {
-    if (err instanceof Error && /HTTP\s(429|500|503|502)/.test(err.message)) {
+    if (isRetriableError(err)) {
       retryCount++;
-      console.log(`First page failed, retrying in ${retryCount * 1000}ms`);
       await wait(retryCount * 1000);
       await fetchFirstPage(limit);
       return;
@@ -85,12 +84,10 @@ async function fetchRemainingPages(limit: number): Promise<void> {
     try {
       const { data } = await fetchPage(page, limit);
       patients = patients.concat(data);
-      console.log(`Accumulated patients after page ${page}: ${patients.length}`);
       await wait(200);
     } catch (err) {
-      if (err instanceof Error && /HTTP\s(429|500|503|502)/.test(err.message)) {
+      if (isRetriableError(err)) {
         retryCount++;
-        console.log(`Page ${page} failed, retrying in ${retryCount * 1000}ms`);
         await wait(retryCount * 1000);
         page--;
         continue;
