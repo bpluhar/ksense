@@ -178,26 +178,27 @@ async function fetchPatientData(): Promise<void> {
     console.warn(`Warning: fetched ${patients.length} patients, expected ${pagination.total}`);
   } else {
     console.log(`Success: fetched all ${patients.length} patients`);
-  }
 
-  const alerts = sortData(patients);
-  console.log(JSON.stringify(alerts, null, 2));
-  // try {
-  //   fetch('https://assessment.ksensetech.com/api/submit-assessment', {
-  //     method: 'POST',
-  //     headers: {
-  //       'Content-Type': 'application/json',
-  //       'x-api-key': API_KEY
-  //     },
-  //     body: JSON.stringify(alerts)
-  //   })
-  //   .then(response => response.json())
-  //   .then(data => {
-  //     console.log('Assessment Results:', JSON.stringify(data, null, 2));
-  //   });
-  // } catch (err) {
-  //   console.error('Failed to submit assessment:', err);
-  // }
+    const alerts = sortData(patients);
+
+    try {
+      fetch('https://assessment.ksensetech.com/api/submit-assessment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_KEY
+        },
+        body: JSON.stringify(alerts)
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log('Assessment Results:', JSON.stringify(data, null, 2));
+      });
+    } catch (err) {
+      console.error('Failed to submit assessment:', err);
+    }
+  }
+  
 
 }
 
