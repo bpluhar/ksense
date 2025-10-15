@@ -133,23 +133,33 @@ function scoreTemperature(temp: number | null | undefined): { score: number; val
   return { score: 0, valid: false, isFever: false };
 }
 
-function sortData(patients: Patient[]): { high_risk_patients: string[]; fever_patients: string[]; } {
+function scoreAge(age: number | null | undefined): { score: number; valid: boolean } {
+  if (typeof age !== 'number' || !Number.isFinite(age)) return { score: 0, valid: false };
+  if (age > 65) return { score: 2, valid: true };
+  return { score: 1, valid: true };
+}
+
+function sortData(patients: Patient[]): { high_risk_patients: string[]; fever_patients: string[]; data_quality_issues: string[]; } {
   const highRisk: string[] = [];
   const fever: string[] = [];
+  const dataQualityIssues: string[] = [];
 
   for (const patient of patients) {
     const bp = scoreBloodPressure(patient.blood_pressure);
     const t = scoreTemperature(patient.temperature);
+    const a = scoreAge(patient.age);
 
-    const totalScore = bp.score;
+    const totalScore = bp.score + t.score + a.score;
 
     if (totalScore >= 4) highRisk.push(patient.patient_id);
     if (t.valid && t.isFever) fever.push(patient.patient_id);
+    if (!bp.valid || !t.valid || !a.valid) dataQualityIssues.push(patient.patient_id);
   }
 
   return {
     high_risk_patients: highRisk,
-    fever_patients: fever
+    fever_patients: fever,
+    data_quality_issues: dataQualityIssues
   };
 }
 
