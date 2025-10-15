@@ -21,79 +21,85 @@ let metadata: Metadata = {
 let retryCount = 0;
 let firstFetch = false;
 
+let maxRetries = 5;
+
+function wait(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchPage(page: number, limit: number): Promise<{ data: Patient[]; pagination?: Pagination; metadata?: Metadata; }>
+{
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(`${BASE_URL}/patients?page=${page}&limit=${limit}`, {
+        method: 'GET',
+        headers: {  
+          'x-api-key': API_KEY
+        }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const data: Patient[] = json.data;
+      console.log(`Page ${page}: status ${res.status}, received ${data.length} patients`);
+      return { data, pagination: json?.pagination, metadata: json?.metadata };
+    } catch (err) {
+      if (err instanceof Error && /HTTP\s(429|500|503|502)/.test(err.message) && attempt < maxRetries) {
+        const waitMs = attempt * 1000;
+        console.log(`Page ${page} attempt ${attempt} failed (${(err as Error).message}). Retrying in ${waitMs}ms`);
+        await wait(waitMs);
+        continue;
+      }
+      console.error(`Page ${page} failed:`, err);
+      throw err;
+    }
+  }
+  throw new Error(`Page ${page} failed after ${maxRetries} attempts`);
+}
+
 async function fetchFirstPage(limit: number): Promise<void> {
   if (firstFetch) return;
   try {
     console.log("Fetching first page");
-    const firstRes = await fetch(`${BASE_URL}/patients?page=1&limit=${limit}`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': API_KEY
-      }
-    });
-    if (!firstRes.ok) throw new Error(`HTTP ${firstRes.status}`);
-
-    const firstJson = await firstRes.json();
+    const { data, pagination: pg, metadata: md } = await fetchPage(1, limit);
     firstFetch = true;
-    patients = firstJson.data;
-    pagination = firstJson.pagination;
-    metadata = firstJson.metadata;
+    patients = data;
+    if (pg) pagination = pg;
+    if (md) metadata = md;
     retryCount = 0;
+    console.log(`After page 1: patients=${patients.length}, total=${pagination.total}, totalPages=${pagination.totalPages}`);
   } catch (err) {
-    if (err == "Error: HTTP 429") {
+    if (err instanceof Error && /HTTP\s(429|500|503|502)/.test(err.message)) {
       retryCount++;
-      console.log(`Rate limit exceeded, retrying in ${retryCount} seconds`);
-      await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+      console.log(`First page failed, retrying in ${retryCount * 1000}ms`);
+      await wait(retryCount * 1000);
       await fetchFirstPage(limit);
-      return;
-    } else if (err == "Error: HTTP 500" || err == "Error: HTTP 503" || err == "Error: HTTP 502") {
-      retryCount++;
-      console.log(`Server error, retrying in ${retryCount} seconds`);
-      await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
-      await fetchFirstPage(limit);
-      return;
-    } else {
-      console.error('Failed first patients fetch:', err);
       return;
     }
+    console.error('Failed first patients fetch:', err);
   }
 }
 
 async function fetchRemainingPages(limit: number): Promise<void> {
-  const totalPages = pagination.totalPages;
-  try {
-    for (let page = 2; page <= totalPages; page++) {
-      console.log(`Fetching page ${page} of ${totalPages}`);
-      const res = await fetch(`${BASE_URL}/patients?page=${page}&limit=${limit}`, {
-        method: 'GET',
-        headers: {
-          'x-api-key': API_KEY
-        }
-      });
-      // if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const newPatients: Patient[] = json.data;
-      patients = patients.concat(newPatients);
-    }
-    retryCount = 0;
-  } catch (err) {
-    if (err == "Error: HTTP 429") {
-      retryCount++;
-      console.log(`Rate limit exceeded, retrying in ${retryCount} seconds`);
-      await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
-      await fetchRemainingPages(limit);
-      return;
-    } else if (err == "Error: HTTP 500" || err == "Error: HTTP 503" || err == "Error: HTTP 502") {
-      retryCount++;
-      console.log(`Server error, retrying in ${retryCount} seconds`);
-      await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
-      await fetchRemainingPages(limit);
-      return;
-    } else {
+  const totalPages = pagination.totalPages || 1;
+  for (let page = 2; page <= totalPages; page++) {
+    try {
+      const { data } = await fetchPage(page, limit);
+      patients = patients.concat(data);
+      console.log(`Accumulated patients after page ${page}: ${patients.length}`);
+      await wait(200);
+    } catch (err) {
+      if (err instanceof Error && /HTTP\s(429|500|503|502)/.test(err.message)) {
+        retryCount++;
+        console.log(`Page ${page} failed, retrying in ${retryCount * 1000}ms`);
+        await wait(retryCount * 1000);
+        page--;
+        continue;
+      }
       console.error('Failed remaining patients fetch:', err);
       return;
     }
   }
+  retryCount = 0;
 }
 
 async function fetchPatientData(): Promise<void> {
@@ -101,6 +107,11 @@ async function fetchPatientData(): Promise<void> {
   await fetchFirstPage(limit);
   if (!firstFetch) return;
   await fetchRemainingPages(limit);
+  if (patients.length !== pagination.total) {
+    console.warn(`Warning: fetched ${patients.length} patients, expected ${pagination.total}`);
+  } else {
+    console.log(`Success: fetched all ${patients.length} patients`);
+  }
 }
 
 fetchPatientData().then(() => {
