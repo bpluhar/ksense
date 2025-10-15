@@ -1,5 +1,6 @@
 import { Patient, Pagination, Metadata } from './types';
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const BASE_URL = 'https://assessment.ksensetech.com/api';
 
