@@ -177,23 +177,22 @@ async function fetchPatientData(): Promise<void> {
   const alerts = sortData(patients);
 
   try {
-    const res = await fetch(`${BASE_URL}/submit-assessment}`, {
+    fetch('https://assessment.ksensetech.com/api/submit-assessment', {
       method: 'POST',
-      headers: {  
-        'x-api-key': API_KEY,
-        'Content-Type': 'application/json'
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY
       },
       body: JSON.stringify(alerts)
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log('Assessment Results:', JSON.stringify(data, null, 2));
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    console.log(json);
   } catch (err) {
     console.error('Failed to submit assessment:', err);
   }
 
 }
 
-fetchPatientData().then(() => {
-  console.log(`Received Patients: ${patients.length} of ${pagination.total}`);
-});
+fetchPatientData();
